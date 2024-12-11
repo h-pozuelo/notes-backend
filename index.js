@@ -16,6 +16,12 @@ const app = express();
 
 app.use(cors()); // Implementamos el middleware de "cors".
 
+/* Tras compilar la aplicación cliente con `npm run build`, copiamos la carpeta "dist" para traerla a la raíz del servidor web.
+
+Implementamos el middleware de "express.static()" para que Express muestre contenido estático. (Siempre que reciba solicitudes HTTP GET a la dirección "/index.html" o "/" mostrará el frontend de React)
+*/
+app.use(express.static("dist"));
+
 // Creamos un middleware personalizado (json-parser también es un middleware). Imprime información sobre cada solicitud que se evía al servidor.
 const requestLogger = (request, response, next) => {
   console.log("Method:", request.method);
@@ -116,6 +122,7 @@ app.post("/api/notes", (request, response) => {
 // Cuando queremos ejecutar un middleware dentro de un controlador de eventos de rutas, debemos implementarlo antes de definir las rutas. En este caso el middleware va a servir para responder a aquellas solicitudes que no coinciden con las rutas definidas, por lo que lo implementamos al final del servidor web.
 app.use(unknownEndpoint);
 
+// Como vamos a desplegar el servidor web en "Render" debemos de obtener el nuevo puerto de las variables de entorno.
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
