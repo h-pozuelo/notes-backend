@@ -1,0 +1,30 @@
+/* Para crear un servidor Node ejecutamos el comando `npm init` dentro de una carpeta vacía.
+
+Dentro del fichero "package.json" definimos el script para arrancar nuestro servidor web ("start": "node index.js").
+
+Tras haber creado el fichero "index.js" podremos arrancar el servidor web con "npm start".
+*/
+const http = require("http"); // Importamos el módulo de servidor web integrado de Node. La sintaxis aunque similar cambia un poco "import http from 'http'".
+
+let notes = [
+  { id: 1, content: "HTML is easy", important: true },
+  { id: 2, content: "Browser can execute only JavaScript", important: false },
+  {
+    id: 3,
+    content: "GET and POST are the most important methods of HTTP protocol",
+    important: true,
+  },
+];
+
+/* El método "http.createServer()" crea un nuevo servidor web. Para registrar un controlador de eventos al servidor web le pasamos una función anónima como parámetro (se llama cada vez que se realizar una solicitud HTTP al servidor web).
+ */
+const app = http.createServer((request, response) => {
+  //   response.writeHead(200, { "Content-Type": "text/plain" }); // La solicitud HTTP responde con el "statusCode: 200", siendo un contenido de tipo texto plano.
+  //   response.end("Hello World"); // Definimos el contenido a retornar.
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify(notes));
+});
+
+const PORT = 3001;
+app.listen(PORT);
+console.log(`Server running on port ${PORT}`);
