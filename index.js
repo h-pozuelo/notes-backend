@@ -22,6 +22,15 @@ Implementamos el middleware de "express.static()" para que Express muestre conte
 */
 app.use(express.static("dist"));
 
+/* ¡IMPORTANTE!
+Modificamos el "./package.json" del servidor web para poder compilar la versión de producción de nuestra aplicación React. Para ello creamos scripts personalizados:
+  - "build:ui": "rm -rf dist && cd ../notes && npm run build && cp -r dist ../notes-backend"
+  - "deploy:full": "npm run build:ui && git add . && git commit -m 'uibuild' && git push -u 'https://github.com/h-pozuelo/notes-backend.git' main"
+
+Para poder ejecutar dichos comandos debemos establecer la "bash" como terminal por defecto:
+  - `npm config set script-shell "C:\\Program Files\\git\\bin\\bash.exe"`
+*/
+
 // Creamos un middleware personalizado (json-parser también es un middleware). Imprime información sobre cada solicitud que se evía al servidor.
 const requestLogger = (request, response, next) => {
   console.log("Method:", request.method);
