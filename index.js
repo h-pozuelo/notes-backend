@@ -1,3 +1,7 @@
+require("dotenv").config();
+
+const Note = require("./models/notes");
+
 /* Como ahora utilizamos Express debemos instalar el paquete `npm install express --save`.
 
 Importamos la función "express()" para poder contruir el servidor web.
@@ -29,6 +33,8 @@ Modificamos el "./package.json" del servidor web para poder compilar la versión
 
 Para poder ejecutar dichos comandos debemos establecer la "bash" como terminal por defecto:
   - `npm config set script-shell "C:\\Program Files\\git\\bin\\bash.exe"`
+
+Para poder acceder al servidor web desde el front-end debemos de configurar un proxy dentro del fichero "./vite.config.js".
 */
 
 // Creamos un middleware personalizado (json-parser también es un middleware). Imprime información sobre cada solicitud que se evía al servidor.
@@ -37,11 +43,21 @@ const requestLogger = (request, response, next) => {
   console.log("Path:", request.path);
   console.log("Body:", request.body);
   console.log("---");
-  next(); // Cede en control al próximo middleware.
+  next(); // Cede el control al próximo middleware.
 };
 
 const unknownEndpoint = (request, response) => {
   response.status(404).send({ error: "unknown endpoint" });
+};
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+
+  if (error.name === "CastError")
+    return response.status(400).send({ error: "malformatted id" });
+  if (error.name === "ValidationError")
+    return response.status(400).send({ error: error.message });
+  next(error);
 };
 
 app.use(express.json());
@@ -66,7 +82,8 @@ app.get("/", (request, response) => {
 });
 
 app.get("/api/notes", (request, response) => {
-  response.json(notes); // Como usamos el método ".json()" del parámetro "response" no es necesario convertir la matriz a JSON ni especificar el tipo de contenido.
+  // response.json(notes); // Como usamos el método ".json()" del parámetro "response" no es necesario convertir la matriz a JSON ni especificar el tipo de contenido.
+  Note.find({}).then((notes) => response.json(notes));
 });
 
 /* ¡IMPORTANTE!
@@ -74,29 +91,50 @@ Cuando enviamos parámetros a través de la ruta se convierten a cadenas de text
 
 Debemos castear el valor del "id" al tipo "Number".
 */
-app.get("/api/notes/:id", (request, response) => {
-  const id = Number(request.params.id);
-  const note = notes.find((note) => {
-    console.log(note.id, typeof note.id, id, typeof id, note.id === id);
-    return note.id === id;
-  });
+app.get("/api/notes/:id", (request, response, next) => {
+  // const id = Number(request.params.id);
+  // const note = notes.find((note) => {
+  //   console.log(note.id, typeof note.id, id, typeof id, note.id === id);
+  //   return note.id === id;
+  // });
 
-  console.log(note);
+  // console.log(note);
 
-  // Si la nota existe la devolvemos en formato JSON...
-  if (note) {
-    response.json(note);
-  } else {
-    response.statusMessage = "Note Not Found";
-    response.status(404).end(); // En caso contrario especificamos el "statusCode: 400"; el método ".end()" indica que se va a responder a la solicitud HTTP GET sin devolver datos.
-  }
+  // // Si la nota existe la devolvemos en formato JSON...
+  // if (note) {
+  //   response.json(note);
+  // } else {
+  //   response.statusMessage = "Note Not Found";
+  //   response.status(404).end(); // En caso contrario especificamos el "statusCode: 400"; el método ".end()" indica que se va a responder a la solicitud HTTP GET sin devolver datos.
+  // }
+
+  Note.findById(request.params.id)
+    .then((note) => {
+      // Si la nota con dicho "id" no existe (null).
+      if (!note) return response.status(404).end();
+      response.status(200).json(note);
+    })
+    /* Controlamos cuando las solicitudes a la base de datos son rechazadas.
+    
+    La función "next()" que recibe como parámetro el error va a pasarlo hacia el middleware de Express.js que controla errores.
+
+    En caso de no pasar parámetros a la función "next()" pasaría al próximo middleware o ruta.
+    */
+    // Controlamos cuando las solicitudes a la base de datos son rechazadas.
+    .catch((error) => next(error)); // La función "next()" va a pasar el error hacia adelante (al próximo middleware).
 });
 
-app.delete("/api/notes/:id", (request, response) => {
-  const id = Number(request.params.id);
-  notes = notes.filter((note) => note.id !== id);
+app.delete("/api/notes/:id", (request, response, next) => {
+  // const id = Number(request.params.id);
+  // notes = notes.filter((note) => note.id !== id);
 
-  response.status(204).end();
+  // response.status(204).end();
+
+  Note.findByIdAndDelete(request.params.id)
+    .then((result) => {
+      response.status(204).end();
+    })
+    .catch((error) => next(error));
 });
 
 /* ¡IMPORTANTE!
@@ -109,7 +147,7 @@ const generateId = () => {
   return maxId + 1;
 };
 
-app.post("/api/notes", (request, response) => {
+app.post("/api/notes", (request, response, next) => {
   const body = request.body;
 
   /* Si el cuerpo de la solicitud HTTP no contiene la propiedad "content" se devuelve un "statusCode: 400", con el método ".json()" devolvemos un objeto personalizado con un mensaje de error (en este caso no se ha modificado el mensaje de error de la respuesta sino que hemos devuelto un objeto con el mensaje).
@@ -117,19 +155,59 @@ app.post("/api/notes", (request, response) => {
   if (!body.content)
     return response.status(400).json({ error: "content missing" }); // Con el "return" no continua la ejecución a continuación.
 
-  const note = {
+  // const note = {
+  //   content: body.content,
+  //   important: Boolean(body.important) || false,
+  //   id: generateId(),
+  // };
+
+  // notes = notes.concat(note);
+
+  // response.json(note);
+
+  const note = new Note({
     content: body.content,
     important: Boolean(body.important) || false,
-    id: generateId(),
+    // id: generateId(), // La base de datos va a crear el "id".
+  });
+
+  note
+    .save()
+    .then((savedNote) => {
+      response.json(savedNote);
+    })
+    .catch((error) => next(error));
+});
+
+app.put("/api/notes/:id", (request, response, next) => {
+  const body = request.body;
+
+  const note = {
+    content: body.content,
+    important: body.important,
   };
 
-  notes = notes.concat(note);
-
-  response.json(note);
+  /* ¡IMPORTANTE!
+  La función "findByIdAndUpdate()" recibe como parámetros:
+    - "id" : El identificador del elemento en la base de datos.
+    - "object": El objeto JavaScript con la información a actualizar (no es un nuevo objeto nota creado con el constructor de Note).
+    - "options": Por defecto el controlador de eventos devuelve el elemento sin la modificaciones nuevas, para que retorne el elemento con las propiedades actualizadas especificamos la propiedad "new" como "true".
+  */
+  Note.findByIdAndUpdate(request.params.id, note, {
+    new: true,
+    runValidators: true,
+    context: "query",
+  })
+    .then((updatedNote) => {
+      response.status(200).json(updatedNote);
+    })
+    .catch((error) => next(error));
 });
 
 // Cuando queremos ejecutar un middleware dentro de un controlador de eventos de rutas, debemos implementarlo antes de definir las rutas. En este caso el middleware va a servir para responder a aquellas solicitudes que no coinciden con las rutas definidas, por lo que lo implementamos al final del servidor web.
 app.use(unknownEndpoint);
+
+app.use(errorHandler); // El controlador de error siempre debe ser implementado como el último middleware.
 
 // Como vamos a desplegar el servidor web en "Render" debemos de obtener el nuevo puerto de las variables de entorno.
 const PORT = process.env.PORT || 3001;
